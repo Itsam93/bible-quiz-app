@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import allQuestions from "../data/questions";
@@ -16,40 +16,44 @@ export default function Quiz() {
   const { state } = useLocation();
   const { category, difficulty } = state || {};
 
-  // Filter and prepare questions
+  // Filter by category and difficulty
   const filtered = allQuestions.filter(
     (q) =>
       (category === "All" || q.category === category) &&
       (difficulty === "All" || q.difficulty === difficulty)
   );
 
+  // Shuffle & pick 10 questions
   const [questions] = useState(() =>
-    shuffleArray(
-      filtered.length > 10 ? shuffleArray(filtered).slice(0, 10) : filtered
-    ).map((q) => ({
-      ...q,
-      options: shuffleArray(q.options),
-    }))
+    shuffleArray(filtered)
+      .slice(0, 10)
+      .map((q) => ({
+        ...q,
+        options: shuffleArray(q.options),
+      }))
   );
 
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState("");
-  const [score, setScore] = useState(0);
   const [timer, setTimer] = useState(15);
+  const scoreRef = useRef(0);
 
+  // Move to next question or result page
   const nextQuestion = useCallback(() => {
     if (current < questions.length - 1) {
       setCurrent((prev) => prev + 1);
       setSelected("");
       setTimer(15);
     } else {
-      navigate("/result", { state: { score, total: questions.length } });
+      navigate("/result", {
+        state: { score: scoreRef.current, total: questions.length },
+      });
     }
-  }, [current, navigate, questions.length, score]);
+  }, [current, questions.length, navigate]);
 
+  // Countdown logic
   useEffect(() => {
     if (!questions.length) return;
-
     if (timer === 0) {
       setTimeout(nextQuestion, 1000);
       return;
@@ -62,10 +66,11 @@ export default function Quiz() {
     return () => clearTimeout(countdown);
   }, [timer, nextQuestion, questions.length]);
 
+  // On option select
   const handleSelect = (option) => {
     setSelected(option);
     if (option === questions[current].answer) {
-      setScore((prev) => prev + 1);
+      scoreRef.current += 1;
     }
     setTimeout(nextQuestion, 1000);
   };
@@ -88,12 +93,9 @@ export default function Quiz() {
 
   const currentQuestion = questions[current];
 
-  const baseStyle =
-    "block w-full p-3 sm:p-4 mb-3 border rounded text-left transition text-sm sm:text-base";
-
   return (
     <div className="min-h-screen bg-gray-50 px-3 sm:px-6 py-4 flex flex-col justify-start">
-      {/* Sticky Timer for Mobile */}
+      {/* Mobile Timer Sticky */}
       <div className="sm:hidden fixed top-0 left-0 right-0 bg-white shadow-md z-50 py-2 text-center">
         <p className="text-red-600 font-bold text-lg">⏱️ {timer}s</p>
       </div>
@@ -105,10 +107,12 @@ export default function Quiz() {
           </h2>
           <div className="text-sm text-gray-600 mt-1">
             Category:{" "}
-            <span className="font-medium">{currentQuestion.category}</span> |
+            <span className="font-medium">{currentQuestion.category}</span> |{" "}
             Difficulty:{" "}
             <span className="font-medium">{currentQuestion.difficulty}</span>
           </div>
+
+          {/* Progress Bar */}
           <div className="mt-4 flex justify-center">
             <div className="bg-gray-200 w-full h-2 rounded-full">
               <div
@@ -121,6 +125,7 @@ export default function Quiz() {
           </div>
         </div>
 
+        {/* Question Card */}
         <motion.div
           key={current}
           initial={{ opacity: 0, y: 20 }}
@@ -131,6 +136,7 @@ export default function Quiz() {
         >
           <p className="text-lg font-medium mb-4">{currentQuestion.question}</p>
 
+          {/* Desktop timer */}
           <p className="mb-4 text-red-600 font-bold text-xl hidden sm:block text-center">
             Time Left: {timer}s
           </p>
@@ -145,7 +151,7 @@ export default function Quiz() {
             return (
               <button
                 key={index}
-                className={`${baseStyle} ${bgColor} ${
+                className={`block w-full p-3 sm:p-4 mb-3 border rounded text-left transition text-sm sm:text-base ${bgColor} ${
                   selected
                     ? "cursor-not-allowed"
                     : "hover:bg-blue-100 active:scale-[0.98]"
